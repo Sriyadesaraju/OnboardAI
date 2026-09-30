@@ -1,0 +1,86 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Trainee {
+  id         String       @id @default(cuid())
+  traineeId  Int          @unique
+  name       String
+  email      String       @unique
+  spoc       String?
+  batch      String
+  status     TraineeStatus @default(ACTIVE)
+  tasks      Task[]
+  attendance Attendance[]
+  user       User?
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+}
+
+enum TraineeStatus {
+  ACTIVE
+  COMPLETED
+  ON_HOLD
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  taskName    String
+  description String?
+  assignedTo  Trainee    @relation(fields: [traineeId], references: [id])
+  traineeId   String
+  dueDate     DateTime
+  priority    Priority   @default(MEDIUM)
+  status      TaskStatus @default(PENDING)
+  createdBy   String?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum TaskStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+model Attendance {
+  id        String           @id @default(cuid())
+  trainee   Trainee          @relation(fields: [traineeId], references: [id])
+  traineeId String
+  date      DateTime
+  status    AttendanceStatus @default(PRESENT)
+  createdBy String?
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  trainee      Trainee? @relation(fields: [traineeId], references: [id])
+  traineeId    String?  @unique
+  createdAt    DateTime @default(now())
+}
+
+enum UserRole {
+  MANAGER
+  SPOC
+  TRAINEE
+  ADMIN
+}

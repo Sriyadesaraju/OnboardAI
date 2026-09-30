@@ -1,0 +1,440 @@
+openapi: 3.0.3
+info:
+  title: OnboardAI API
+  description: >
+    Structured API for trainee onboarding tracking. Copilot Studio's custom
+    connector imports this file. Copilot Studio owns all natural-language
+    parsing and response phrasing; this API only ever accepts and returns
+    structured, validated JSON.
+  version: 0.1.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development
+security:
+  - connectorKey: []
+paths:
+  /trainees:
+    get:
+      operationId: listTrainees
+      summary: List all trainees
+      security:
+        - connectorKey: []
+      responses:
+        "200":
+          description: Array of trainees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Trainee"
+    post:
+      operationId: createTrainee
+      summary: Create a trainee
+      security:
+        - connectorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TraineeInput"
+      responses:
+        "201":
+          description: Created trainee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trainee"
+
+  /trainees/{id}:
+    get:
+      operationId: getTrainee
+      summary: Get a single trainee
+      security:
+        - connectorKey: []
+      parameters:
+        - $ref: "#/components/parameters/TraineePathId"
+      responses:
+        "200":
+          description: Trainee detail
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trainee"
+        "404":
+          description: Not found
+    patch:
+      operationId: updateTrainee
+      summary: Update a trainee
+      security:
+        - connectorKey: []
+      parameters:
+        - $ref: "#/components/parameters/TraineePathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TraineeInput"
+      responses:
+        "200":
+          description: Updated trainee
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Trainee"
+
+  /tasks:
+    get:
+      operationId: listTasks
+      summary: List tasks, optionally filtered
+      security:
+        - connectorKey: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            $ref: "#/components/schemas/TaskStatus"
+        - in: query
+          name: traineeId
+          schema:
+            type: string
+        - in: query
+          name: overdue
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Array of tasks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Task"
+    post:
+      operationId: createTask
+      summary: >
+        Create a task and assign it to one trainee, an explicit list of
+        trainees, or all trainees at once. Called by the React "create task"
+        form directly, and by the Copilot Studio agent after it parses a
+        manager's plain-language instruction (e.g. "give everyone the Security
+        Course due July 18" -> assignToAll: true).
+      security:
+        - connectorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "201":
+          description: Number of tasks created (one per assigned trainee)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  created:
+                    type: integer
+
+  /tasks/{id}:
+    patch:
+      operationId: updateTask
+      summary: Update a task
+      security:
+        - connectorKey: []
+      parameters:
+        - $ref: "#/components/parameters/TaskPathId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TaskInput"
+      responses:
+        "200":
+          description: Updated task
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Task"
+
+  /attendance:
+    get:
+      operationId: listAttendance
+      summary: List attendance records
+      security:
+        - connectorKey: []
+      parameters:
+        - in: query
+          name: traineeId
+          schema:
+            type: string
+        - in: query
+          name: from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Array of attendance records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Attendance"
+    post:
+      operationId: recordAttendance
+      summary: Record attendance
+      security:
+        - connectorKey: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AttendanceInput"
+      responses:
+        "201":
+          description: Created attendance record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Attendance"
+
+  /reports/weekly-summary:
+    get:
+      operationId: getWeeklySummary
+      summary: >
+        Structured stats only (completion %, overdue count, attendance %).
+        Copilot Studio phrases this conversationally; this endpoint never
+        generates wording, only numbers.
+      security:
+        - connectorKey: []
+      responses:
+        "200":
+          description: Weekly summary stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WeeklySummary"
+
+  /reports/risk-flags:
+    get:
+      operationId: getRiskFlags
+      summary: >
+        Trainees meeting deterministic risk criteria (2+ overdue tasks,
+        attendance <80%) as structured data. Copilot Studio writes the
+        per-trainee explanation when a manager asks about it conversationally.
+      security:
+        - connectorKey: []
+      responses:
+        "200":
+          description: Array of flagged trainees
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RiskFlag"
+
+components:
+  securitySchemes:
+    connectorKey:
+      type: apiKey
+      in: header
+      name: x-connector-key
+      description: >
+        Copilot Studio's own API key (COPILOT_CONNECTOR_API_KEY), distinct
+        from human user JWTs. Scoped, rotatable, and auditable independently
+        of any individual login.
+  parameters:
+    TraineePathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    TaskPathId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+  schemas:
+    TraineeStatus:
+      type: string
+      enum: [ACTIVE, COMPLETED, ON_HOLD]
+    TaskStatus:
+      type: string
+      enum: [PENDING, IN_PROGRESS, COMPLETED]
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+    AttendanceStatus:
+      type: string
+      enum: [PRESENT, ABSENT]
+    Trainee:
+      type: object
+      properties:
+        id:
+          type: string
+        traineeId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        spoc:
+          type: string
+          nullable: true
+        batch:
+          type: string
+        status:
+          $ref: "#/components/schemas/TraineeStatus"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    TraineeInput:
+      type: object
+      required: [traineeId, name, email, batch]
+      properties:
+        traineeId:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        spoc:
+          type: string
+        batch:
+          type: string
+        status:
+          $ref: "#/components/schemas/TraineeStatus"
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+        taskName:
+          type: string
+        description:
+          type: string
+          nullable: true
+        traineeId:
+          type: string
+        dueDate:
+          type: string
+          format: date-time
+        priority:
+          $ref: "#/components/schemas/Priority"
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+        createdBy:
+          type: string
+          nullable: true
+    TaskInput:
+      type: object
+      required: [taskName, dueDate]
+      description: >
+        Provide exactly one assignment target: traineeId (single),
+        traineeIds (explicit list), or assignToAll (everyone).
+      properties:
+        taskName:
+          type: string
+        description:
+          type: string
+        traineeId:
+          type: string
+          description: Internal trainee id (not the human-readable traineeId number)
+        traineeIds:
+          type: array
+          items:
+            type: string
+          description: Explicit list of internal trainee ids to assign to
+        assignToAll:
+          type: boolean
+          enum: [true]
+          description: Assign to every trainee (including SPOCs) at once
+        dueDate:
+          type: string
+          format: date-time
+        priority:
+          $ref: "#/components/schemas/Priority"
+        status:
+          $ref: "#/components/schemas/TaskStatus"
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: string
+        traineeId:
+          type: string
+        date:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/AttendanceStatus"
+    AttendanceInput:
+      type: object
+      required: [traineeId, date]
+      properties:
+        traineeId:
+          type: string
+        date:
+          type: string
+          format: date-time
+        status:
+          $ref: "#/components/schemas/AttendanceStatus"
+    WeeklySummary:
+      type: object
+      properties:
+        generatedAt:
+          type: string
+          format: date-time
+        completionRatePercent:
+          type: number
+        overdueTaskCount:
+          type: integer
+        attendanceRatePercent:
+          type: number
+        totalTasks:
+          type: integer
+        totalAttendanceRecords:
+          type: integer
+    RiskFlag:
+      type: object
+      properties:
+        traineeId:
+          type: string
+        traineeNumericId:
+          type: integer
+        name:
+          type: string
+        batch:
+          type: string
+        spoc:
+          type: string
+          nullable: true
+        overdueTaskCount:
+          type: integer
+        attendanceRatePercent:
+          type: number
+        reasons:
+          type: array
+          items:
+            type: string
